@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>健身计时器</title>
+    <!-- PWA-related meta tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#1f2937">
+    <!-- PWA Manifest: 核心配置文件，让浏览器知道这是一个可安装的应用 -->
+    <link rel="manifest" href="data:application/manifest+json,{
+        &quot;name&quot;: &quot;健身计时器&quot;,
+        &quot;short_name&quot;: &quot;计时器&quot;,
+        &quot;start_url&quot;: &quot;.&quot;,
+        &quot;display&quot;: &quot;standalone&quot;,
+        &quot;background_color&quot;: &quot;#111827&quot;,
+        &quot;theme_color&quot;: &quot;#1f2937&quot;,
+        &quot;description&quot;: &quot;一个用于健身锻炼的简洁计时器。&quot;,
+        &quot;icons&quot;: [
+            { &quot;src&quot;: &quot;https://placehold.co/192x192/06b6d4/ffffff?text=计时&quot;, &quot;sizes&quot;: &quot;192x192&quot;, &quot;type&quot;: &quot;image/png&quot; },
+            { &quot;src&quot;: &quot;https://placehold.co/512x512/06b6d4/ffffff?text=计时&quot;, &quot;sizes&quot;: &quot;512x512&quot;, &quot;type&quot;: &quot;image/png&quot; }
+        ]
+    }">
+
+    <!-- 引入Tailwind CSS框架，用于快速构建漂亮的界面 -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 引入Tone.js库，用于生成音频 -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <style>
+        /* 自定义样式，确保圆形进度条的动画流畅 */
+        .circle-progress {
+            transition: stroke-dashoffset 0.5s linear;
+        }
+        /* 自定义字体 */
+        body {
+            font-family: 'Inter', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white flex flex-col items-center justify-center min-h-screen p-4 antialiased">
+
+    <div class="w-full max-w-sm mx-auto bg-gray-800 rounded-3xl shadow-2xl p-6 sm:p-8">
+        <h1 class="text-3xl font-bold text-center mb-6 text-cyan-400">健身计时器</h1>
+
+        <!-- 倒计时显示区域 -->
+        <div class="relative w-64 h-64 mx-auto mb-8">
+            <!-- SVG用于绘制圆形进度条 -->
+            <svg class="w-full h-full" viewBox="0 0 100 100">
+                <!-- 背景圆环 -->
+                <circle class="text-gray-700" stroke-width="8" stroke="currentColor" fill="transparent" r="45" cx="50" cy="50" />
+                <!-- 进度圆环 -->
+                <circle id="progress-ring"
+                        class="text-cyan-400 circle-progress"
+                        stroke-width="8"
+                        stroke-linecap="round"
+                        stroke="currentColor"
+                        fill="transparent"
+                        r="45"
+                        cx="50"
+                        cy="50"
+                        transform="rotate(-90 50 50)"
+                        />
+            </svg>
+            <!-- 时间显示 -->
+            <div id="time-display" class="absolute inset-0 flex items-center justify-center text-6xl font-mono font-bold">
+                30
+            </div>
+        </div>
+
+        <!-- 时间选择按钮 -->
+        <div class="flex justify-center space-x-2 sm:space-x-4 mb-8">
+            <button onclick="setTime(10)" class="time-btn w-16 h-10 text-sm font-semibold bg-gray-700 rounded-lg hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-all duration-300">10秒</button>
+            <button onclick="setTime(30)" class="time-btn w-16 h-10 text-sm font-semibold bg-cyan-600 rounded-lg hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-all duration-300">30秒</button>
+            <button onclick="setTime(60)" class="time-btn w-16 h-10 text-sm font-semibold bg-gray-700 rounded-lg hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-all duration-300">60秒</button>
+            <button onclick="setTime(120)" class="time-btn w-16 h-10 text-sm font-semibold bg-gray-700 rounded-lg hover:bg-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-400 transition-all duration-300">2分钟</button>
+        </div>
+
+        <!-- 控制按钮 -->
+        <div class="flex justify-center flex-wrap gap-4">
+            <button id="start-pause-btn" class="w-32 h-14 text-xl font-bold bg-green-500 rounded-xl hover:bg-green-600 focus:outline-none focus:ring-4 focus:ring-green-400 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105">
+                开始
+            </button>
+            <button id="reset-btn" class="w-32 h-14 text-xl font-bold bg-gray-600 rounded-xl hover:bg-gray-700 focus:outline-none focus:ring-4 focus:ring-gray-500 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105">
+                重置
+            </button>
+            <button id="install-btn" class="hidden w-32 h-14 text-xl font-bold bg-purple-500 rounded-xl hover:bg-purple-600 focus:outline-none focus:ring-4 focus:ring-purple-400 focus:ring-opacity-50 transition-all duration-300 transform hover:scale-105">
+                安装
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // --- DOM元素获取 ---
+        const timeDisplay = document.getElementById('time-display');
+        const progressRing = document.getElementById('progress-ring');
+        const startPauseBtn = document.getElementById('start-pause-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const timeBtns = document.querySelectorAll('.time-btn');
+        const installBtn = document.getElementById('install-btn');
+
+        // --- PWA 安装事件监听 ---
+        let deferredPrompt;
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // 阻止浏览器默认的安装提示
+            e.preventDefault();
+            // 保存事件，以便后续手动触发
+            deferredPrompt = e;
+            // 显示我们自定义的安装按钮
+            installBtn.classList.remove('hidden');
+            console.log('`beforeinstallprompt` 事件已触发。应用现在可以被用户安装。');
+        });
+
+        installBtn.addEventListener('click', async () => {
+            if (!deferredPrompt) {
+                console.log('安装事件不存在。');
+                return;
+            }
+            // 触发安装提示
+            deferredPrompt.prompt();
+            // 等待用户的选择
+            const { outcome } = await deferredPrompt.userChoice;
+            console.log(`用户对安装提示的响应: ${outcome}`);
+            // 用户操作后，无论接受或拒绝，我们都不再需要这个事件了
+            deferredPrompt = null;
+            // 隐藏安装按钮
+            installBtn.classList.add('hidden');
+        });
+
+        window.addEventListener('appinstalled', () => {
+            // 当PWA成功安装后触发
+            deferredPrompt = null;
+            console.log('PWA 安装成功！感谢您的安装。');
+        });
+
+
+        // --- 计时器状态变量 ---
+        let totalTime = 30; // 总时长，默认30秒
+        let timeLeft = 30; // 剩余时间
+        let timerInterval = null; // 计时器ID
+        let isRunning = false; // 是否正在运行
+        let isAudioReady = false; // 音频是否已准备好
+
+        // --- 音频合成器设置 (Tone.js) ---
+        let tickSynth, finishSynth;
+
+        function setupAudio() {
+            if (isAudioReady) return;
+            tickSynth = new Tone.MembraneSynth({
+                pitchDecay: 0.01,
+                octaves: 6,
+                envelope: { attack: 0.001, decay: 0.2, sustain: 0 },
+            }).toDestination();
+
+            finishSynth = new Tone.Synth({
+                oscillator: { type: 'triangle' },
+                envelope: { attack: 0.01, decay: 0.2, sustain: 0.1, release: 0.5 },
+            }).toDestination();
+            isAudioReady = true;
+        }
+
+        // --- 圆形进度条计算 ---
+        const radius = progressRing.r.baseVal.value;
+        const circumference = 2 * Math.PI * radius;
+        progressRing.style.strokeDasharray = `${circumference} ${circumference}`;
+        progressRing.style.strokeDashoffset = circumference;
+
+        // --- 功能函数 ---
+        function setProgress(percent) {
+            const offset = circumference - percent * circumference;
+            progressRing.style.strokeDashoffset = offset;
+        }
+
+        function updateDisplay() {
+            timeDisplay.textContent = timeLeft;
+            const percent = (totalTime - timeLeft) / totalTime;
+            setProgress(percent);
+        }
+
+        function startTimer() {
+            if (isRunning) return;
+            if (!isAudioReady) {
+                Tone.start();
+                setupAudio();
+            }
+            isRunning = true;
+            startPauseBtn.textContent = '暂停';
+            startPauseBtn.classList.remove('bg-green-500', 'hover:bg-green-600');
+            startPauseBtn.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateDisplay();
+
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    finishSynth.triggerAttackRelease('C5', '0.5s', Tone.now());
+                    finishSynth.triggerAttackRelease('G5', '0.5s', Tone.now() + 0.2);
+                    setTimeout(resetTimer, 500);
+                } else if (timeLeft <= 3) {
+                    tickSynth.triggerAttackRelease('C4', '0.1s');
+                } else {
+                    tickSynth.triggerAttackRelease('C3', '0.1s');
+                }
+            }, 1000);
+        }
+
+        function pauseTimer() {
+            if (!isRunning) return;
+            isRunning = false;
+            clearInterval(timerInterval);
+            startPauseBtn.textContent = '继续';
+            startPauseBtn.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+            startPauseBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            timeLeft = totalTime;
+            updateDisplay();
+            startPauseBtn.textContent = '开始';
+            startPauseBtn.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+            startPauseBtn.classList.add('bg-green-500', 'hover:bg-green-600');
+            setProgress(0);
+        }
+
+        function setTime(seconds) {
+            totalTime = seconds;
+            timeBtns.forEach(btn => {
+                if (parseInt(btn.textContent.includes('分钟') ? btn.textContent * 60 : btn.textContent) === seconds) {
+                    btn.classList.remove('bg-gray-700');
+                    btn.classList.add('bg-cyan-600');
+                } else {
+                    btn.classList.remove('bg-cyan-600');
+                    btn.classList.add('bg-gray-700');
+                }
+            });
+            resetTimer();
+        }
+
+        // --- 事件监听 ---
+        startPauseBtn.addEventListener('click', () => {
+            if (isRunning) {
+                pauseTimer();
+            } else {
+                startTimer();
+            }
+        });
+
+        resetBtn.addEventListener('click', resetTimer);
+
+        // 初始化显示
+        updateDisplay();
+        setProgress(0);
+    </script>
+</body>
+</html>
+
