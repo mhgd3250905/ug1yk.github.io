@@ -23,6 +23,9 @@
         ]
     }">
 
+    <!-- PWA Manifest: 链接到外部的配置文件，方便修改图标 -->
+    <link rel="manifest" href="manifest.json">
+
     <!-- 引入Tailwind CSS框架，用于快速构建漂亮的界面 -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- 引入Tone.js库，用于生成音频 -->
@@ -88,6 +91,11 @@
                 安装
             </button>
         </div>
+        
+        <!-- 安装提示 -->
+        <p class="text-xs text-gray-400 text-center mt-6">
+            提示: 要安装到手机桌面, 请使用浏览器菜单中的"添加到主屏幕"功能。
+        </p>
     </div>
 
     <script>
